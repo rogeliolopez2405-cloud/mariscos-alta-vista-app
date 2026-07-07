@@ -1,0 +1,340 @@
+"use client";
+
+import Image from "next/image";
+import { useMemo, useState } from "react";
+import { CATEGORY_ORDER, MENU } from "@/lib/menu";
+import { CartItem, PaymentMethod } from "@/lib/types";
+
+type Cart = Record<string, number>; // menuItemId -> quantity
+
+function formatMoney(n: number) {
+  return `$${n.toFixed(2)}`;
+}
+
+function todayISO() {
+  const d = new Date();
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+export default function OrderPage() {
+  const [cart, setCart] = useState<Cart>({});
+  const [cartOpen, setCartOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmedOrderId, setConfirmedOrderId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [pickupDate, setPickupDate] = useState(todayISO());
+  const [pickupTime, setPickupTime] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pay_at_pickup");
+  const [notes, setNotes] = useState("");
+
+  const itemsByCategory = useMemo(() => {
+    const grouped: Record<string, typeof MENU> = {};
+    for (const item of MENU) {
+      grouped[item.category] = grouped[item.category] || [];
+      grouped[item.category].push(item);
+    }
+    return grouped;
+  }, []);
+
+  const cartItems: CartItem[] = useMemo(() => {
+    return Object.entries(cart)
+      .filter(([, qty]) => qty > 0)
+      .map(([menuItemId, quantity]) => {
+        const menuItem = MENU.find((m) => m.id === menuItemId)!;
+        return {
+          menuItemId,
+          name: menuItem.name,
+          price: menuItem.price,
+          quantity,
+        };
+      });
+  }, [cart]);
+
+  const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const itemCount = cartItems.reduce((sum, i) => sum + i.quantity, 0);
+
+  function updateQty(menuItemId: string, delta: number) {
+    setCart((prev) => {
+      const next = { ...prev };
+      next[menuItemId] = Math.max(0, (next[menuItemId] || 0) + delta);
+      return next;
+    });
+  }
+
+  async function submitOrder(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!customerName.trim() || !customerPhone.trim()) {
+      setError("Please enter your name and phone number.");
+      return;
+    }
+    if (!pickupTime) {
+      setError("Please choose a pickup time.");
+      return;
+    }
+    if (cartItems.length === 0) {
+      setError("Your cart is empty.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName,
+          customerPhone,
+          pickupDate,
+          pickupTime,
+          paymentMethod,
+          notes,
+          items: cartItems.map((i) => ({
+            menuItemId: i.menuItemId,
+            quantity: i.quantity,
+          })),
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Something went wrong placing your order.");
+      }
+      const { order } = await res.json();
+      setConfirmedOrderId(order.id);
+      setCart({});
+      setCartOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (confirmedOrderId) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center bg-white rounded-2xl shadow-lg p-8 border border-maroon/10">
+          <div className="text-5xl mb-4">🦐</div>
+          <h1 className="text-2xl font-bold text-maroon mb-2">
+            Order received!
+          </h1>
+          <p className="text-foreground/80 mb-6">
+            {paymentMethod === "pay_online"
+              ? "Online payments are launching soon — we'll confirm your order and you can pay when you pick it up."
+              : "We'll see you at pickup. Pay in person with cash or card."}
+          </p>
+          <p className="text-sm text-foreground/50 mb-6">
+            Order #{confirmedOrderId.slice(0, 8)}
+          </p>
+          <button
+            className="bg-maroon text-white px-6 py-3 rounded-full font-semibold hover:bg-maroon-dark transition"
+            onClick={() => setConfirmedOrderId(null)}
+          >
+            Place another order
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen pb-28">
+      <header className="relative bg-maroon text-white text-center overflow-hidden">
+        <Image
+          src="/promo/seafood-weekend.jpg"
+          alt="Mariscos Alta Vista — shrimp ceviche and shrimp cocktail"
+          width={900}
+          height={1035}
+          priority
+          className="w-full max-h-72 object-cover object-top opacity-90"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-maroon via-maroon/10 to-transparent" />
+        <div className="relative py-4 px-4">
+          <h1 className="text-3xl font-bold tracking-wide">MARISCOS ALTA VISTA</h1>
+          <p className="mt-1 opacity-90">📍 Paramount, CA · Order ahead for pickup</p>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        {CATEGORY_ORDER.filter((cat) => itemsByCategory[cat]?.length).map(
+          (category) => (
+            <section key={category} className="mb-8">
+              <h2 className="text-xl font-bold text-maroon mb-3">{category}</h2>
+              <div className="space-y-3">
+                {itemsByCategory[category].map((item) => {
+                  const qty = cart[item.id] || 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between bg-white rounded-xl p-4 shadow-sm border border-maroon/10"
+                    >
+                      <div className="pr-3">
+                        <p className="font-semibold">{item.name}</p>
+                        <p className="text-sm text-foreground/60">
+                          {item.description}
+                        </p>
+                        <p className="text-sm font-semibold text-maroon mt-1">
+                          {formatMoney(item.price)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {qty > 0 && (
+                          <>
+                            <button
+                              onClick={() => updateQty(item.id, -1)}
+                              className="w-8 h-8 rounded-full border border-maroon text-maroon font-bold"
+                            >
+                              −
+                            </button>
+                            <span className="w-4 text-center">{qty}</span>
+                          </>
+                        )}
+                        <button
+                          onClick={() => updateQty(item.id, 1)}
+                          className="w-8 h-8 rounded-full bg-maroon text-white font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )
+        )}
+      </div>
+
+      {itemCount > 0 && !cartOpen && (
+        <button
+          onClick={() => setCartOpen(true)}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-maroon text-white rounded-full px-6 py-3 shadow-lg font-semibold flex items-center gap-3"
+        >
+          <span>View cart · {itemCount} item{itemCount > 1 ? "s" : ""}</span>
+          <span>{formatMoney(total)}</span>
+        </button>
+      )}
+
+      {cartOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-maroon">Your order</h2>
+              <button onClick={() => setCartOpen(false)} className="text-2xl leading-none">
+                &times;
+              </button>
+            </div>
+
+            <ul className="space-y-2 mb-4">
+              {cartItems.map((item) => (
+                <li key={item.menuItemId} className="flex justify-between text-sm">
+                  <span>
+                    {item.quantity}x {item.name}
+                  </span>
+                  <span>{formatMoney(item.price * item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-between font-bold border-t pt-2 mb-6">
+              <span>Total</span>
+              <span>{formatMoney(total)}</span>
+            </div>
+
+            <form onSubmit={submitOrder} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1">Name</label>
+                <input
+                  className="w-full border rounded-lg px-3 py-2"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Phone number</label>
+                <input
+                  type="tel"
+                  className="w-full border rounded-lg px-3 py-2"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold mb-1">Pickup date</label>
+                  <input
+                    type="date"
+                    className="w-full border rounded-lg px-3 py-2"
+                    min={todayISO()}
+                    value={pickupDate}
+                    onChange={(e) => setPickupDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold mb-1">Pickup time</label>
+                  <input
+                    type="time"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={pickupTime}
+                    onChange={(e) => setPickupTime(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Notes (optional)</label>
+                <textarea
+                  className="w-full border rounded-lg px-3 py-2"
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Payment</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="payment"
+                      checked={paymentMethod === "pay_at_pickup"}
+                      onChange={() => setPaymentMethod("pay_at_pickup")}
+                    />
+                    Pay at pickup (cash or card)
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="payment"
+                      checked={paymentMethod === "pay_online"}
+                      onChange={() => setPaymentMethod("pay_online")}
+                    />
+                    Pay online now (coming soon)
+                  </label>
+                </div>
+              </div>
+
+              {error && <p className="text-red-600 text-sm">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-maroon text-white py-3 rounded-full font-semibold disabled:opacity-50"
+              >
+                {submitting ? "Placing order..." : `Place order · ${formatMoney(total)}`}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

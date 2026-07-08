@@ -9,7 +9,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await request.json();
+  const body = (await request.json()) as { status: OrderStatus };
   const status: OrderStatus = body.status;
 
   if (!VALID_STATUSES.includes(status)) {

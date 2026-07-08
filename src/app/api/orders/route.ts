@@ -20,7 +20,7 @@ interface CreateOrderBody {
 }
 
 export async function POST(request: NextRequest) {
-  const body: CreateOrderBody = await request.json();
+  const body = (await request.json()) as CreateOrderBody;
 
   if (
     !body.customerName?.trim() ||

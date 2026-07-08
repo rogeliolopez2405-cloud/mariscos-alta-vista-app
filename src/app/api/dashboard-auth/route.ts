@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 const PASSCODE = process.env.DASHBOARD_PASSCODE || "mariscos2026";
 
 export async function POST(request: NextRequest) {
-  const { passcode } = await request.json();
+  const { passcode } = (await request.json()) as { passcode: string };
 
   if (passcode !== PASSCODE) {
     return NextResponse.json({ error: "Incorrect passcode." }, { status: 401 });

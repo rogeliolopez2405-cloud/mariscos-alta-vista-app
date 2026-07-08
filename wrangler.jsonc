@@ -14,5 +14,11 @@
 			"binding": "WORKER_SELF_REFERENCE",
 			"service": "mariscos-alta-vista-app"
 		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "ORDERS_KV",
+			"id": "49330ffb58d04cda820c722b5a457089"
+		}
 	]
 }

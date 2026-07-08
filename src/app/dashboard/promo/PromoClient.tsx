@@ -129,6 +129,22 @@ export default function PromoClient() {
             )}
           </div>
 
+          <div className="bg-white rounded-xl border border-gold/20 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-semibold">📸 Social media</p>
+            </div>
+            <button
+              onClick={() => copyToClipboard(fullMessage, "caption")}
+              className="w-full border border-maroon text-maroon py-3 rounded-full font-semibold tracking-wide"
+            >
+              {copiedWhat === "caption" ? "Copied!" : "Copy caption"}
+            </button>
+            <p className="text-xs text-foreground/50 mt-2">
+              Copies your message + link, ready to paste into Instagram, Facebook,
+              or WhatsApp Status.
+            </p>
+          </div>
+
           <p className="text-xs text-foreground/50">
             &quot;Text everyone&quot; opens your phone&apos;s messaging app with all
             numbers and your message pre-filled — you tap send. Since it&apos;s a

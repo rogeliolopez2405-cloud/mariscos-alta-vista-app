@@ -18,6 +18,23 @@ function todayISO() {
   return local.toISOString().slice(0, 10);
 }
 
+// Pickup slots, store, and store the label directly (e.g. "6:00 PM") since
+// it's only ever displayed, never parsed — sidesteps the browser/OS locale
+// deciding whether a native time input shows 12h or 24h ("military") time.
+function buildPickupTimeSlots() {
+  const slots: string[] = [];
+  for (let minutes = 11 * 60; minutes <= 21 * 60; minutes += 30) {
+    const hour24 = Math.floor(minutes / 60);
+    const minute = minutes % 60;
+    const period = hour24 < 12 ? "AM" : "PM";
+    const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+    slots.push(`${hour12}:${minute.toString().padStart(2, "0")} ${period}`);
+  }
+  return slots;
+}
+
+const PICKUP_TIME_SLOTS = buildPickupTimeSlots();
+
 export default function OrderPage() {
   const [cart, setCart] = useState<Cart>({});
   const [cartOpen, setCartOpen] = useState(false);
@@ -280,13 +297,21 @@ export default function OrderPage() {
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-semibold mb-1">Pickup time</label>
-                  <input
-                    type="time"
+                  <select
                     className="w-full border rounded-lg px-3 py-2"
                     value={pickupTime}
                     onChange={(e) => setPickupTime(e.target.value)}
                     required
-                  />
+                  >
+                    <option value="" disabled>
+                      Select a time
+                    </option>
+                    {PICKUP_TIME_SLOTS.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div>

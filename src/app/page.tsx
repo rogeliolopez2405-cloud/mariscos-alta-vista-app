@@ -23,7 +23,7 @@ function todayISO() {
 // deciding whether a native time input shows 12h or 24h ("military") time.
 function buildPickupTimeSlots() {
   const slots: string[] = [];
-  for (let minutes = 11 * 60; minutes <= 21 * 60; minutes += 30) {
+  for (let minutes = 11 * 60; minutes <= 21 * 60; minutes += 15) {
     const hour24 = Math.floor(minutes / 60);
     const minute = minutes % 60;
     const period = hour24 < 12 ? "AM" : "PM";

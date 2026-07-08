@@ -23,14 +23,19 @@ function formatMoney(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
+type TicketedOrder = Order & { ticketNumber: number };
+
 export default function DashboardClient() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<TicketedOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadOrders = useCallback(async () => {
     const res = await fetch("/api/orders", { cache: "no-store" });
     const data = await res.json();
-    setOrders(data.orders || []);
+    const fetched: Order[] = data.orders || [];
+    // Orders come back oldest-first, so position in the full history is a
+    // stable ticket number that doesn't shift as older orders complete.
+    setOrders(fetched.map((order, i) => ({ ...order, ticketNumber: i + 1 })));
     setLoading(false);
   }, []);
 
@@ -40,7 +45,7 @@ export default function DashboardClient() {
     return () => clearInterval(interval);
   }, [loadOrders]);
 
-  async function advanceStatus(order: Order) {
+  async function advanceStatus(order: TicketedOrder) {
     const currentIndex = STATUS_FLOW.indexOf(order.status);
     const next = STATUS_FLOW[currentIndex + 1];
     if (!next) return;
@@ -80,6 +85,9 @@ export default function DashboardClient() {
           >
             <div className="flex justify-between items-start mb-2">
               <div>
+                <p className="text-xs font-bold text-maroon/70 tracking-wide">
+                  TICKET #{order.ticketNumber}
+                </p>
                 <p className="font-bold">{order.customerName}</p>
                 <p className="text-sm text-foreground/60">{order.customerPhone}</p>
               </div>
@@ -136,7 +144,7 @@ export default function DashboardClient() {
                 className="text-sm border border-maroon/10 rounded-lg p-3 flex justify-between"
               >
                 <span>
-                  {order.customerName} — {order.items.length} item(s)
+                  #{order.ticketNumber} · {order.customerName} — {order.items.length} item(s)
                 </span>
                 <span>{formatMoney(order.total)}</span>
               </div>
